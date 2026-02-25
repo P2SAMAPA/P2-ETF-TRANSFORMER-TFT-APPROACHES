@@ -1,0 +1,26 @@
+name: Daily Data Sync
+on:
+  schedule:
+    - cron: '0 22 * * 1-5' # Runs at 10 PM UTC, Mon-Fri
+  workflow_dispatch: # Allows you to run it manually for testing
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install yfinance python-gitlab pandas
+
+      - name: Run Daily Update
+        env:
+          GITLAB_API_TOKEN: ${{ secrets.GITLAB_API_TOKEN }}
+          GITLAB_PROJECT_ID: ${{ secrets.GITLAB_PROJECT_ID }}
+        run: python update_logic.py
