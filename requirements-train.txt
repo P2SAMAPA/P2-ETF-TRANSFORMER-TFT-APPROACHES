@@ -1,5 +1,6 @@
 darts[torch]==0.28.0
 torch==2.1.2
+einops==0.7.0
 pandas==2.1.4
 numpy==1.24.3
 python-gitlab==4.4.0
