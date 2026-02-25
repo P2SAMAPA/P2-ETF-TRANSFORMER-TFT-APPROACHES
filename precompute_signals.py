@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import numpy as np
 from darts import TimeSeries
-from darts.models import TFTModel, PatchTSTModel
 from darts.dataprocessing.transformers import Scaler
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import gitlab
@@ -11,6 +10,18 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
+# --- Robust imports for TFT and PatchTST ---
+try:
+    from darts.models import TFTModel
+except ImportError:
+    from darts.models.forecasting.tft_model import TFTModel
+
+try:
+    from darts.models import PatchTSTModel
+except ImportError:
+    from darts.models.forecasting.patchtst_model import PatchTSTModel
+
+# --- Configuration ---
 GITLAB_URL = "https://gitlab.com"
 PROJECT_ID = os.getenv('GITLAB_PROJECT_ID')
 GL_TOKEN = os.getenv('GITLAB_API_TOKEN')
@@ -35,9 +46,6 @@ def prepare_series(df, target_ticker):
     return series, covariates
 
 def walk_forward_signals(model_class, model_params, df, tickers, start_date=None):
-    """
-    Walk‑forward prediction. If start_date is given, only run from that date onward.
-    """
     if start_date is not None:
         df = df.loc[df.index >= start_date]
     
@@ -95,16 +103,16 @@ def main():
     df = fetch_data_from_gitlab()
     print(f"Data shape: {df.shape}")
     
-    # Reduce model complexity for GitHub free tier
+    # Reduced model parameters for GitHub free tier
     tft_params = {
-        'input_chunk_length': 30,        # shorter lookback
+        'input_chunk_length': 30,
         'output_chunk_length': 1,
-        'hidden_size': 32,                # smaller hidden size
+        'hidden_size': 32,
         'lstm_layers': 1,
         'num_attention_heads': 2,
         'dropout': 0.1,
         'batch_size': 16,
-        'n_epochs': 5,                    # fewer epochs
+        'n_epochs': 5,
         'optimizer_kwargs': {'lr': 1e-3},
         'add_relative_index': True,
         'force_reset': True,
@@ -126,9 +134,8 @@ def main():
         'random_state': 42
     }
     
-    # Optionally limit the date range to reduce runtime (e.g., last 5 years)
-    # start_date = "2018-01-01"  # uncomment to restrict
-    start_date = None
+    # Optional: limit date range to reduce runtime (e.g., last 5 years)
+    start_date = None  # or "2018-01-01"
     
     print("\n🔮 Generating TFT signals...")
     tft_signals = walk_forward_signals(TFTModel, tft_params, df, TICKERS, start_date)
