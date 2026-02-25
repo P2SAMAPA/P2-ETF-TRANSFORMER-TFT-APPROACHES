@@ -5,13 +5,10 @@ import pandas as pd
 from datetime import datetime
 from io import StringIO
 
-# --- CONFIGURATION (Loaded from GitHub Secrets) ---
 GITLAB_URL = "https://gitlab.com"
 PROJECT_ID = os.getenv('GITLAB_PROJECT_ID')
 GL_TOKEN = os.getenv('GITLAB_API_TOKEN')
 FILE_NAME = "master_data.csv"
-
-# The assets we track for rotation + Benchmarks
 SYMBOLS = ["TLT", "TBT", "VNQ", "GLD", "SLV", "SPY", "AGG", "^IRX"]
 
 def update_data_lake():
@@ -21,43 +18,43 @@ def update_data_lake():
         print("❌ Error: Missing GITLAB_API_TOKEN or GITLAB_PROJECT_ID in environment.")
         return
 
-    # 1. Connect to GitLab
     gl = gitlab.Gitlab(GITLAB_URL, private_token=GL_TOKEN)
     project = gl.projects.get(PROJECT_ID)
 
-    # 2. Pull the existing master_data.csv from GitLab
+    # 1. Pull existing data
     try:
         file_info = project.files.get(file_path=FILE_NAME, ref='main')
         existing_content = file_info.decode().decode('utf-8')
         df_old = pd.read_csv(StringIO(existing_content), index_col=0)
         df_old.index = pd.to_datetime(df_old.index)
-        print(f"📊 Existing data loaded: {len(df_old)} rows.")
-    except Exception as e:
-        print(f"❌ Could not retrieve existing file: {e}")
+        print(f"📊 Existing data loaded: {len(df_old)} rows (last date: {df_old.index[-1].date()}).")
+    except gitlab.exceptions.GitlabGetError:
+        print("❌ master_data.csv not found. Run seeder.py first.")
         return
 
-    # 3. Fetch the latest data (last 5 days to ensure we catch any missed closes)
+    # 2. Fetch latest data (use a generous window to cover holidays)
     print("📡 Fetching latest market data...")
-    df_new = yf.download(SYMBOLS, period="5d")['Close']
+    df_new = yf.download(SYMBOLS, period="10d")['Close']  # 10 days to be safe
     df_new.index = pd.to_datetime(df_new.index)
 
-    # 4. Merge New Data with Old Data
-    # 'combine_first' fills in the latest gaps without duplicating existing rows
+    # 3. Merge new with old
     df_updated = df_new.combine_first(df_old)
-    
-    # Sort and remove any duplicates by index
     df_updated = df_updated[~df_updated.index.duplicated(keep='last')].sort_index()
 
-    # 5. Convert back to CSV string
+    # 4. Check if there are actual changes
+    if df_updated.equals(df_old):
+        print("✅ No new data – nothing to commit.")
+        return
+
+    # 5. Convert to CSV and push
     csv_buffer = StringIO()
     df_updated.to_csv(csv_buffer)
     updated_content = csv_buffer.getvalue()
 
-    # 6. Push the updated file back to GitLab
     try:
         file_info.content = updated_content
         file_info.save(branch='main', commit_message=f"Daily Auto-Update: {datetime.now().strftime('%Y-%m-%d')}")
-        print("✅ SUCCESS: GitLab Data Lake updated with latest closes.")
+        print(f"✅ SUCCESS: GitLab Data Lake updated. New rows: {len(df_updated) - len(df_old)}")
     except Exception as e:
         print(f"❌ Failed to push update to GitLab: {e}")
 
