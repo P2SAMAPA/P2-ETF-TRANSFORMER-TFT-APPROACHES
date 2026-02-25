@@ -14,20 +14,8 @@ warnings.filterwarnings("ignore")
 import darts
 print(f"📦 Using darts version: {darts.__version__}")
 
-# --- Robust imports for TFT and PatchTST ---
-try:
-    from darts.models import TFTModel
-except ImportError:
-    from darts.models.forecasting.tft_model import TFTModel
-
-# PatchTST may be in different locations
-try:
-    from darts.models import PatchTSTModel
-except ImportError:
-    try:
-        from darts.models.forecasting.patchtst_model import PatchTSTModel
-    except ImportError:
-        from darts.models.forecasting.patchtst import PatchTSTModel
+# --- Imports for available models ---
+from darts.models import TFTModel, TransformerModel  # TransformerModel is available
 
 # --- Configuration ---
 GITLAB_URL = "https://gitlab.com"
@@ -35,7 +23,7 @@ PROJECT_ID = os.getenv('GITLAB_PROJECT_ID')
 GL_TOKEN = os.getenv('GITLAB_API_TOKEN')
 DATA_FILE = "master_data.csv"
 TFT_SIGNALS_FILE = "signals_tft.csv"
-PATCHTST_SIGNALS_FILE = "signals_patchtst.csv"
+TRANSFORMER_SIGNALS_FILE = "signals_transformer.csv"  # Renamed
 TICKERS = ["TLT", "TBT", "VNQ", "SLV", "GLD"]
 
 def fetch_data_from_gitlab():
@@ -48,7 +36,6 @@ def fetch_data_from_gitlab():
 
 def prepare_series(df, target_ticker):
     series = TimeSeries.from_dataframe(df, value_cols=target_ticker, fill_missing_dates=True, freq='B')
-    # Simple time covariates (month and dayofweek)
     covariates = datetime_attribute_timeseries(series, attribute="month", cyclic=True)
     covariates = covariates.stack(datetime_attribute_timeseries(series, attribute="dayofweek", cyclic=True))
     return series, covariates
@@ -58,13 +45,12 @@ def walk_forward_signals(model_class, model_params, df, tickers, start_date=None
         df = df.loc[df.index >= start_date]
     
     dates = df.index
-    min_train = 252 * 2  # at least 2 years
+    min_train = 252 * 2
     signals = []
     
     for i in range(min_train, len(dates)):
         train_end = dates[i-1]
         test_date = dates[i]
-        
         train_df = df.loc[:train_end]
         pred_returns = {}
         
@@ -111,7 +97,7 @@ def main():
     df = fetch_data_from_gitlab()
     print(f"Data shape: {df.shape}")
     
-    # Reduced model parameters for GitHub free tier
+    # TFT parameters (unchanged)
     tft_params = {
         'input_chunk_length': 30,
         'output_chunk_length': 1,
@@ -127,13 +113,15 @@ def main():
         'random_state': 42
     }
     
-    patchtst_params = {
+    # Transformer parameters (adapted)
+    transformer_params = {
         'input_chunk_length': 30,
         'output_chunk_length': 1,
-        'num_encoder_layers': 2,
-        'num_attention_heads': 2,
         'd_model': 64,
-        'd_ff': 128,
+        'nhead': 4,
+        'num_encoder_layers': 3,
+        'num_decoder_layers': 3,
+        'dim_feedforward': 128,
         'dropout': 0.1,
         'batch_size': 16,
         'n_epochs': 5,
@@ -142,18 +130,17 @@ def main():
         'random_state': 42
     }
     
-    # Optional: limit date range to reduce runtime (e.g., last 5 years)
     start_date = None  # or "2018-01-01"
     
     print("\n🔮 Generating TFT signals...")
     tft_signals = walk_forward_signals(TFTModel, tft_params, df, TICKERS, start_date)
     
-    print("\n🔮 Generating PatchTST signals...")
-    patchtst_signals = walk_forward_signals(PatchTSTModel, patchtst_params, df, TICKERS, start_date)
+    print("\n🔮 Generating Transformer signals...")
+    transformer_signals = walk_forward_signals(TransformerModel, transformer_params, df, TICKERS, start_date)
     
     print("\n📡 Uploading to GitLab...")
     upload_to_gitlab(TFT_SIGNALS_FILE, tft_signals.to_csv())
-    upload_to_gitlab(PATCHTST_SIGNALS_FILE, patchtst_signals.to_csv())
+    upload_to_gitlab(TRANSFORMER_SIGNALS_FILE, transformer_signals.to_csv())
     print("✅ Done.")
 
 if __name__ == "__main__":
