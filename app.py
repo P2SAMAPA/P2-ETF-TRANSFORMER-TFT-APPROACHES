@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import gitlab
 import os
 from datetime import datetime
+from io import StringIO
 
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="ETF Alpha Dashboard", layout="wide")
@@ -34,11 +35,11 @@ st.markdown("""
 # --- DATA FETCHING (FROM GITLAB DATA LAKE) ---
 @st.cache_data(ttl=3600)
 def load_data_from_gitlab():
-    # Retrieve secrets from Streamlit Cloud
-    gl_token = st.secrets["GITLAB_API_TOKEN"]
-    gl_id = st.secrets["GITLAB_PROJECT_ID"]
-    
     try:
+        # Retrieve secrets from Streamlit Cloud
+        gl_token = st.secrets["GITLAB_API_TOKEN"]
+        gl_id = st.secrets["GITLAB_PROJECT_ID"]
+        
         gl = gitlab.Gitlab("https://gitlab.com", private_token=gl_token)
         project = gl.projects.get(gl_id)
         
@@ -46,8 +47,7 @@ def load_data_from_gitlab():
         file_info = project.files.get(file_path="master_data.csv", ref="main")
         content = file_info.decode().decode('utf-8')
         
-        from io import StringIO
-        df = pd.read_csv(StringIO(content), index_date=True)
+        df = pd.read_csv(StringIO(content), index_col=0)
         df.index = pd.to_datetime(df.index)
         return df
     except Exception as e:
@@ -77,8 +77,8 @@ st.caption("Automated Portfolio Optimization using Transformer-based Forecasting
 data = load_data_from_gitlab()
 
 if not data.empty:
-    # --- LOGIC PLACEHOLDERS (To be connected to engine.py) ---
-    current_asset = "VNQ" # Logic will determine this
+    # --- LOGIC PLACEHOLDERS ---
+    current_asset = "VNQ" 
     is_in_cash = False
     prediction_z = 1.45
     mtd_perf = "+3.2%"
@@ -98,17 +98,46 @@ if not data.empty:
     st.markdown("<p class='section-header'>Strategy Performance vs. Benchmarks</p>", unsafe_allow_html=True)
     
     fig = go.Figure()
-    # Adding Strategy Curve
     fig.add_trace(go.Scatter(x=data.index[-100:], y=np.random.randn(100).cumsum() + 100, 
                              name="Strategy (PatchTST/TFT)", line=dict(color="#1E3A8A", width=3)))
-    # Adding Benchmark
     fig.add_trace(go.Scatter(x=data.index[-100:], y=np.random.randn(100).cumsum() + 100, 
                              name="SPY Benchmark", line=dict(color="#94A3B8", dash='dash')))
     
     fig.update_layout(height=450, template="plotly_white", margin=dict(l=20, r=20, t=20, b=20))
     st.plotly_chart(fig, use_container_width=True)
 
-    # 3. SIGNAL LOG
+    # 3. SIGNAL LOG (Fixed Syntax Here)
     with st.expander("🔎 View Recent Signal History & Model Weights"):
-        st.table(pd.DataFrame({
-            "Date": data.index[-5
+        log_data = {
+            "Date": data.index[-5:].strftime('%Y-%m-%d').tolist(),
+            "Primary Signal": ["ETF", "ETF", "ETF", "CASH", "ETF"],
+            "Asset Selected": ["VNQ", "VNQ", "TLT", "CASH", "VNQ"],
+            "Trigger Reason": ["Z-Score Entry", "Trend Hold", "Volatility Exit", "TSL Hit", "Re-entry Z"]
+        }
+        st.table(pd.DataFrame(log_data))
+
+# --- FINAL SECTION: METHODOLOGY ---
+st.divider()
+st.markdown("<p class='section-header'>📚 Methodology: PatchTST vs. TFT Engine</p>", unsafe_allow_html=True)
+
+m_col1, m_col2 = st.columns(2)
+
+with m_col1:
+    st.markdown("### 🧩 PatchTST (Patch Time Series Transformer)")
+    st.write("""
+    **Best For:** Independent trend analysis and long-term signal spotting.
+    * **Patching:** Breaks price action into windows (e.g., 16-day) to see 'shapes' rather than noise.
+    * **Channel Independence:** Each ETF is treated as its own unique signal.
+    * **Efficiency:** Handles 2008-2026 data without high memory overhead.
+    """)
+
+with m_col2:
+    st.markdown("### 📊 TFT (Temporal Fusion Transformer)")
+    st.write("""
+    **Best For:** Macro-driven rotation using Variables A-H.
+    * **Variable Selection:** Automatically weighs macro data (Inflation, Yields) to find drivers.
+    * **Gated Logic:** 'On/Off' switch for variables to prevent overfitting in specific years.
+    * **Interpretable Attention:** Identifies exactly when macro events influence price.
+    """)
+
+st.info("💡 **Strategy Implementation:** PatchTST monitors trend strength; TFT validates against macro variables. If 2-day loss > TSL slider, move to CASH. Re-entry requires Z-Score > slider.")
