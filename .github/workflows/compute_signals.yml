@@ -37,45 +37,46 @@ jobs:
 
       - name: Debug darts installation
         run: |
-          python -c '
+          cat > debug_darts.py << 'EOF'
 import darts
-print("darts version:", darts.__version__)
-print("darts path:", darts.__file__)
+print('darts version:', darts.__version__)
+print('darts path:', darts.__file__)
 import os
-forecasting_path = os.path.join(os.path.dirname(darts.__file__), "models", "forecasting")
-print("Contents of darts/models/forecasting:")
+forecasting_path = os.path.join(os.path.dirname(darts.__file__), 'models', 'forecasting')
+print('Contents of darts/models/forecasting:')
 if os.path.exists(forecasting_path):
     for f in os.listdir(forecasting_path):
-        if f.endswith(".py") or f.endswith(".pyc"):
-            print(" -", f)
+        if f.endswith('.py') or f.endswith('.pyc'):
+            print(' -', f)
 else:
-    print("Path not found:", forecasting_path)
+    print('Path not found:', forecasting_path)
 
-print("\nTrying imports:")
+print('\nTrying imports:')
 try:
     from darts.models.forecasting.tft_model import TFTModel
-    print("✅ TFTModel imported from tft_model")
+    print('✅ TFTModel imported from tft_model')
 except Exception as e:
-    print("❌ TFTModel import failed:", e)
+    print('❌ TFTModel import failed:', e)
 
 try:
     from darts.models.forecasting.patchtst_model import PatchTSTModel
-    print("✅ PatchTSTModel imported from patchtst_model")
+    print('✅ PatchTSTModel imported from patchtst_model')
 except Exception as e:
-    print("❌ PatchTSTModel import from patchtst_model failed:", e)
+    print('❌ PatchTSTModel import from patchtst_model failed:', e)
 
 try:
     from darts.models.forecasting.patchtst import PatchTSTModel
-    print("✅ PatchTSTModel imported from patchtst")
+    print('✅ PatchTSTModel imported from patchtst')
 except Exception as e:
-    print("❌ PatchTSTModel import from patchtst failed:", e)
+    print('❌ PatchTSTModel import from patchtst failed:', e)
 
 try:
     from darts.models import PatchTSTModel
-    print("✅ PatchTSTModel imported from darts.models")
+    print('✅ PatchTSTModel imported from darts.models')
 except Exception as e:
-    print("❌ PatchTSTModel import from darts.models failed:", e)
-'
+    print('❌ PatchTSTModel import from darts.models failed:', e)
+EOF
+          python debug_darts.py
 
       - name: Run signal generation
         env:
