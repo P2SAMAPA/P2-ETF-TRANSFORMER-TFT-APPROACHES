@@ -45,6 +45,7 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         border: 1px solid #e5e7eb;
         transition: transform 0.2s;
+        height: 100%;
     }
     .metric-card:hover {
         transform: translateY(-5px);
@@ -184,6 +185,11 @@ max_daily_val = results["max_daily_val"]
 max_daily_date = results["max_daily_date"]
 max_p2t = results["max_p2t"]
 
+# Compute additional metrics
+total_return = (1 + daily_rets).prod() - 1
+num_years = len(daily_rets) / 252
+annual_return = (1 + total_return) ** (1 / num_years) - 1
+
 # Hit ratio
 last_15_rets = daily_rets.tail(15)
 hit_ratio = (last_15_rets > 0).sum() / len(last_15_rets) if len(last_15_rets) > 0 else 0
@@ -208,11 +214,20 @@ with col_pred2:
     </div>
     """, unsafe_allow_html=True)
 
-# --- METRICS ROW ---
+# --- METRICS ROW (now with Annual Return) ---
 st.markdown("### 📊 Key Performance Metrics")
-m1, m2, m3, m4 = st.columns(4)
+m1, m2, m3, m4, m5 = st.columns(5)
 
 with m1:
+    st.markdown(f"""
+    <div class="metric-card">
+        <div class="metric-label">Annual Return</div>
+        <div class="metric-value">{annual_return:.2%}</div>
+        <div class="metric-delta">CAGR</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with m2:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-label">Sharpe Ratio</div>
@@ -221,7 +236,7 @@ with m1:
     </div>
     """, unsafe_allow_html=True)
 
-with m2:
+with m3:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-label">Max Daily Drawdown</div>
@@ -230,16 +245,16 @@ with m2:
     </div>
     """, unsafe_allow_html=True)
 
-with m3:
+with m4:
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-label">Peak-to-Trough</div>
+        <div class="metric-label">Max Drawdown</div>
         <div class="metric-value">{max_p2t:.2%}</div>
-        <div class="metric-delta">Max DD</div>
+        <div class="metric-delta">Peak‑to‑Trough</div>
     </div>
     """, unsafe_allow_html=True)
 
-with m4:
+with m5:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-label">15‑Day Hit Ratio</div>
